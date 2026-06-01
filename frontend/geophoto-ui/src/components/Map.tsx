@@ -21,8 +21,84 @@ interface Photo {
   imageUrl: string;
 }
 
+interface Comment {
+  id: string;
+  text: string;
+  email: string;
+  createdAt: string;
+}
+
 interface Props {
   refreshKey: number;
+}
+
+function PhotoPopup({ photo }: { photo: Photo }) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get(`/photos/${photo.id}/comments`).then(res => setComments(res.data));
+  }, [photo.id]);
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    setLoading(true);
+    try {
+      const res = await api.post(`/photos/${photo.id}/comments`, { text: newComment });
+      setComments(prev => [...prev, res.data]);
+      setNewComment('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{ maxWidth: 220 }}>
+      <img
+        src={`http://localhost:5132${photo.imageUrl}`}
+        alt="photo"
+        style={{ width: '100%', borderRadius: 4 }}
+      />
+      {photo.aiDescription && (
+        <p style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}>{photo.aiDescription}</p>
+      )}
+      <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
+        {new Date(photo.createdAt).toLocaleDateString()}
+      </p>
+
+      <div style={{ borderTop: '1px solid #eee', paddingTop: 8 }}>
+        <strong style={{ fontSize: 12 }}>Comments</strong>
+        <div style={{ maxHeight: 120, overflowY: 'auto', margin: '6px 0' }}>
+          {comments.length === 0 && (
+            <p style={{ fontSize: 11, color: '#aaa' }}>No comments yet.</p>
+          )}
+          {comments.map(c => (
+            <div key={c.id} style={{ marginBottom: 6 }}>
+              <span style={{ fontSize: 11, fontWeight: 600 }}>{c.email}</span>
+              <p style={{ fontSize: 12, margin: '2px 0 0' }}>{c.text}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            value={newComment}
+            onChange={e => setNewComment(e.target.value)}
+            placeholder="Add a comment..."
+            style={{ flex: 1, padding: '4px 6px', fontSize: 12, border: '1px solid #ccc', borderRadius: 4 }}
+            onKeyDown={e => e.key === 'Enter' && handleAddComment()}
+          />
+          <button
+            onClick={handleAddComment}
+            disabled={loading}
+            style={{ padding: '4px 8px', background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, fontSize: 12, cursor: 'pointer' }}
+          >
+            {loading ? '...' : 'Post'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Map({ refreshKey }: Props) {
@@ -45,19 +121,7 @@ export default function Map({ refreshKey }: Props) {
       {photos.map(photo => (
         <Marker key={photo.id} position={[photo.latitude, photo.longitude]}>
           <Popup>
-            <div style={{ maxWidth: 200 }}>
-              <img
-                src={`http://localhost:5132${photo.imageUrl}`}
-                alt="photo"
-                style={{ width: '100%', borderRadius: 4 }}
-              />
-              {photo.aiDescription && (
-                <p style={{ fontSize: 12, marginTop: 8 }}>{photo.aiDescription}</p>
-              )}
-              <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>
-                {new Date(photo.createdAt).toLocaleDateString()}
-              </p>
-            </div>
+            <PhotoPopup photo={photo} />
           </Popup>
         </Marker>
       ))}

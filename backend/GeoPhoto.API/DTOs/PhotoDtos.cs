@@ -9,3 +9,12 @@ public record PhotoResponse(
     DateTime CreatedAt,
     string ImageUrl
 );
+
+public record CommentResponse(
+    Guid Id,
+    string Text,
+    string Email,
+    DateTime CreatedAt
+);
+
+public record AddCommentRequest(string Text);
