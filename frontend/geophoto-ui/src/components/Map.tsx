@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import api from '../api/axios';
 import 'leaflet/dist/leaflet.css';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -30,6 +31,7 @@ interface Comment {
 
 interface Props {
   refreshKey: number;
+  onDeleted?: () => void;
 }
 
 function PhotoPopup({ photo, onDeleted }: { photo: Photo; onDeleted: (id: string) => void }) {
@@ -151,7 +153,7 @@ function PhotoPopup({ photo, onDeleted }: { photo: Photo; onDeleted: (id: string
   );
 }
 
-export default function Map({ refreshKey }: Props) {
+export default function Map({ refreshKey, onDeleted }: Props) {
   const [photos, setPhotos] = useState<Photo[]>([]);
 
   useEffect(() => {
@@ -160,7 +162,26 @@ export default function Map({ refreshKey }: Props) {
 
   const handleDeleted = (id: string) => {
     setPhotos(prev => prev.filter(p => p.id !== id));
+    onDeleted?.();
   };
+
+  if (photos.length === 0) {
+    return (
+      <div style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#f8fafc',
+        color: '#94a3b8'
+      }}>
+        <div style={{ fontSize: 64, marginBottom: 16 }}>🗺️</div>
+        <h2 style={{ fontSize: 20, fontWeight: 600, color: '#475569', marginBottom: 8 }}>No photos yet</h2>
+        <p style={{ fontSize: 14 }}>Upload a geotagged photo to see it appear on the map</p>
+      </div>
+    );
+  }
 
   return (
     <MapContainer
@@ -172,13 +193,15 @@ export default function Map({ refreshKey }: Props) {
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {photos.map(photo => (
-        <Marker key={photo.id} position={[photo.latitude, photo.longitude]}>
-          <Popup>
-            <PhotoPopup photo={photo} onDeleted={handleDeleted} />
-          </Popup>
-        </Marker>
-      ))}
+      <MarkerClusterGroup>
+        {photos.map(photo => (
+          <Marker key={photo.id} position={[photo.latitude, photo.longitude]}>
+            <Popup>
+              <PhotoPopup photo={photo} onDeleted={handleDeleted} />
+            </Popup>
+          </Marker>
+        ))}
+      </MarkerClusterGroup>
     </MapContainer>
   );
 }
