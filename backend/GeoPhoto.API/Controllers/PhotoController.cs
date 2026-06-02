@@ -124,6 +124,30 @@ public class PhotoController : ControllerBase
         return Ok(ToResponse(photo));
     }
 
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(Guid id)
+    {
+        var userId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var photo = await _db.Photos.FindAsync(id);
+
+        if (photo == null) return NotFound();
+        if (photo.UserId != userId) return Forbid();
+
+        // Delete comments first
+        var comments = _db.Comments.Where(c => c.PhotoId == id);
+        _db.Comments.RemoveRange(comments);
+
+        // Delete file
+        var filePath = Path.Combine(_env.ContentRootPath, "uploads", photo.FileName);
+        if (System.IO.File.Exists(filePath))
+            System.IO.File.Delete(filePath);
+
+        _db.Photos.Remove(photo);
+        await _db.SaveChangesAsync();
+
+        return Ok();
+    }
+
     private PhotoResponse ToResponse(Photo p) => new(
         p.Id,
         p.FileName,

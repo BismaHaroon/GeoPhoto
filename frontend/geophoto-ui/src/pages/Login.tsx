@@ -28,33 +28,110 @@ export default function Login({ onLogin }: Props) {
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: '100px auto', padding: 24, border: '1px solid #ccc', borderRadius: 8 }}>
-      <h2>{isRegister ? 'Register' : 'Login'}</h2>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-      <div style={{ marginBottom: 12 }}>
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          style={{ width: '100%', padding: 8 }}
-        />
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+    }}>
+      <div style={{
+        background: 'white',
+        borderRadius: 16,
+        padding: 40,
+        width: '100%',
+        maxWidth: 400,
+        boxShadow: '0 20px 60px rgba(0,0,0,0.15)'
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>🗺️</div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1e293b' }}>GeoPhoto</h1>
+          <p style={{ color: '#64748b', fontSize: 14, marginTop: 4 }}>
+            {isRegister ? 'Create your account' : 'Sign in to your account'}
+          </p>
+        </div>
+
+        {error && (
+          <div style={{
+            background: error.includes('Registered') ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${error.includes('Registered') ? '#86efac' : '#fecaca'}`,
+            color: error.includes('Registered') ? '#166534' : '#dc2626',
+            padding: '10px 14px',
+            borderRadius: 8,
+            fontSize: 13,
+            marginBottom: 16
+          }}>
+            {error}
+          </div>
+        )}
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: '#374151' }}>
+            Email
+          </label>
+          <input
+            placeholder="you@example.com"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: '1px solid #d1d5db',
+              borderRadius: 8,
+              fontSize: 14,
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6, color: '#374151' }}>
+            Password
+          </label>
+          <input
+            placeholder="••••••••"
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              border: '1px solid #d1d5db',
+              borderRadius: 8,
+              fontSize: 14,
+              outline: 'none'
+            }}
+          />
+        </div>
+
+        <button
+          onClick={handleSubmit}
+          style={{
+            width: '100%',
+            padding: '12px',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 8,
+            fontSize: 15,
+            fontWeight: 600,
+            letterSpacing: 0.3
+          }}
+        >
+          {isRegister ? 'Create Account' : 'Sign In'}
+        </button>
+
+        <p style={{ marginTop: 20, textAlign: 'center', fontSize: 13, color: '#64748b' }}>
+          {isRegister ? 'Already have an account? ' : "Don't have an account? "}
+          <span
+            onClick={() => { setIsRegister(!isRegister); setError(''); }}
+            style={{ color: '#667eea', fontWeight: 600, cursor: 'pointer' }}
+          >
+            {isRegister ? 'Sign In' : 'Register'}
+          </span>
+        </p>
       </div>
-      <div style={{ marginBottom: 12 }}>
-        <input
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ width: '100%', padding: 8 }}
-        />
-      </div>
-      <button onClick={handleSubmit} style={{ width: '100%', padding: 10, background: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}>
-        {isRegister ? 'Register' : 'Login'}
-      </button>
-      <p style={{ marginTop: 12, textAlign: 'center', cursor: 'pointer', color: '#2563eb' }}
-        onClick={() => { setIsRegister(!isRegister); setError(''); }}>
-        {isRegister ? 'Already have an account? Login' : "Don't have an account? Register"}
-      </p>
     </div>
   );
 }

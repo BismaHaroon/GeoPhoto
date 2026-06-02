@@ -32,11 +32,12 @@ interface Props {
   refreshKey: number;
 }
 
-function PhotoPopup({ photo }: { photo: Photo }) {
+function PhotoPopup({ photo, onDeleted }: { photo: Photo; onDeleted: (id: string) => void }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [description, setDescription] = useState<string | null>(photo.aiDescription);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     api.get(`/photos/${photo.id}/comments`).then(res => setComments(res.data));
@@ -66,15 +67,49 @@ function PhotoPopup({ photo }: { photo: Photo }) {
     }
   };
 
+  const handleDelete = async () => {
+    if (!confirm('Delete this photo?')) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/photos/${photo.id}`);
+      onDeleted(photo.id);
+    } catch {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 220 }}>
-      <img
-        src={`http://localhost:5132${photo.imageUrl}`}
-        alt="photo"
-        style={{ width: '100%', borderRadius: 4 }}
-      />
+      <div style={{ position: 'relative' }}>
+        <img
+          src={`http://localhost:5132${photo.imageUrl}`}
+          alt="photo"
+          style={{ width: '100%', borderRadius: 4 }}
+        />
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          title="Delete photo"
+          style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            background: 'rgba(220,38,38,0.85)',
+            border: 'none',
+            borderRadius: 6,
+            color: 'white',
+            fontSize: 12,
+            padding: '3px 7px',
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
+        >
+          {deleting ? '...' : '🗑 Delete'}
+        </button>
+      </div>
+
       {description ? (
-        <p style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}>{description}</p>
+        <p style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic', color: '#475569' }}>{description}</p>
       ) : (
         <p style={{ fontSize: 11, color: '#aaa', marginTop: 8 }}>⏳ Generating description...</p>
       )}
@@ -123,11 +158,15 @@ export default function Map({ refreshKey }: Props) {
     api.get('/photos').then(res => setPhotos(res.data));
   }, [refreshKey]);
 
+  const handleDeleted = (id: string) => {
+    setPhotos(prev => prev.filter(p => p.id !== id));
+  };
+
   return (
     <MapContainer
       center={[48.5, 4.0]}
       zoom={7}
-      style={{ height: '80vh', width: '100%' }}
+      style={{ height: '100%', width: '100%' }}
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -136,7 +175,7 @@ export default function Map({ refreshKey }: Props) {
       {photos.map(photo => (
         <Marker key={photo.id} position={[photo.latitude, photo.longitude]}>
           <Popup>
-            <PhotoPopup photo={photo} />
+            <PhotoPopup photo={photo} onDeleted={handleDeleted} />
           </Popup>
         </Marker>
       ))}
