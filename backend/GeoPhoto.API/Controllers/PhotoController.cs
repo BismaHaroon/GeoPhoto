@@ -8,7 +8,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using SystemIO = System.IO;
+using GeoPhoto.API.Services;
 namespace GeoPhoto.API.Controllers;
+
 
 [ApiController]
 [Route("api/photos")]
@@ -17,11 +19,15 @@ public class PhotoController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IWebHostEnvironment _env;
+    private readonly AiDescriptionService _ai;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public PhotoController(AppDbContext db, IWebHostEnvironment env)
+    public PhotoController(AppDbContext db, IWebHostEnvironment env, AiDescriptionService ai, IServiceScopeFactory scopeFactory)
     {
         _db = db;
         _env = env;
+        _ai = ai;
+        _scopeFactory = scopeFactory;
     }
 
     [HttpPost]
@@ -73,6 +79,32 @@ public class PhotoController : ControllerBase
 
         _db.Photos.Add(photo);
         await _db.SaveChangesAsync();
+
+        var photoId = photo.Id;
+        var scopeFactory = _scopeFactory;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var description = await _ai.DescribeImageAsync(filePath);
+                if (description != null)
+                {
+                    using var scope = scopeFactory.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var p = await db.Photos.FindAsync(photoId);
+                    if (p != null)
+                    {
+                        p.AiDescription = description;
+                        await db.SaveChangesAsync();
+                        Console.WriteLine($"AI description saved: {description}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Background task failed: {ex.Message}");
+            }
+        });
 
         return Ok(ToResponse(photo));
     }

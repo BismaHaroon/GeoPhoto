@@ -36,10 +36,23 @@ function PhotoPopup({ photo }: { photo: Photo }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
+  const [description, setDescription] = useState<string | null>(photo.aiDescription);
 
   useEffect(() => {
     api.get(`/photos/${photo.id}/comments`).then(res => setComments(res.data));
   }, [photo.id]);
+
+  useEffect(() => {
+    if (description) return;
+    const interval = setInterval(async () => {
+      const res = await api.get(`/photos/${photo.id}`);
+      if (res.data.aiDescription) {
+        setDescription(res.data.aiDescription);
+        clearInterval(interval);
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [photo.id, description]);
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
@@ -60,8 +73,10 @@ function PhotoPopup({ photo }: { photo: Photo }) {
         alt="photo"
         style={{ width: '100%', borderRadius: 4 }}
       />
-      {photo.aiDescription && (
-        <p style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}>{photo.aiDescription}</p>
+      {description ? (
+        <p style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}>{description}</p>
+      ) : (
+        <p style={{ fontSize: 11, color: '#aaa', marginTop: 8 }}>⏳ Generating description...</p>
       )}
       <p style={{ fontSize: 11, color: '#888', margin: '4px 0 8px' }}>
         {new Date(photo.createdAt).toLocaleDateString()}
