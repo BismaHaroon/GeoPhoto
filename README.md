@@ -90,6 +90,10 @@ npm run dev
 
 App runs at `http://localhost:5173`.
 
+## Demo
+
+▶️ [Watch the demo](https://www.loom.com/share/3ff4fdf13f504ac2900ac6b57074f62c)
+
 ## Architecture
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design, data flow, and technical decisions.
