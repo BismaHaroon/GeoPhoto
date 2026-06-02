@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-GeoPhoto is a web application that allows authenticated users to upload geotagged photos, view them as interactive markers on a map, and collaborate through comments. An AI layer automatically generates a description for each uploaded image.
+GeoPhoto is a web application that allows authenticated users to upload geotagged photos, view them as interactive markers on a map, and collaborate through comments. An AI layer automatically generates a description for each uploaded image using Google Gemini Vision.
 
 ---
 
@@ -16,9 +16,9 @@ GeoPhoto is a web application that allows authenticated users to upload geotagge
 | **File storage** | Local filesystem (dev) → S3-compatible (prod) | Simple to start, easy to swap via an `IStorageService` abstraction |
 | **Authentication** | JWT (access token) + BCrypt password hashing | Stateless, works cleanly with a SPA frontend |
 | **Map** | Leaflet.js + react-leaflet | Open-source, no API key required, rich marker/popup API |
+| **Marker clustering** | react-leaflet-cluster | Groups nearby markers at low zoom levels, handles 10k+ photos performantly |
 | **EXIF parsing** | MetadataExtractor (NuGet) | Extracts GPS latitude/longitude directly from image binary |
-| **AI descriptions** | Ollama + LLaVA model (local) | Vision-capable, runs entirely on local machine, zero cost, no API key required |
-| **Containerization** | Docker + Docker Compose | Single-command local setup, reproducible across machines |
+| **AI descriptions** | Google Gemini 2.5 Flash (REST API) | Vision-capable, free tier, no local GPU required, simple HTTP call from backend |
 
 ---
 
@@ -43,7 +43,7 @@ GeoPhoto is a web application that allows authenticated users to upload geotagge
 │                            │                         │
 │            ┌───────────────┼──────────────┐          │
 │            ▼               ▼              ▼          │
-│     PostgreSQL      Local /uploads   Ollama (LLaVA)  │
+│     PostgreSQL      Local /uploads   Gemini API      │
 │     (EF Core)       or S3 bucket     (AI description)│
 └──────────────────────────────────────────────────────┘
 ```
@@ -104,15 +104,17 @@ GeoPhoto is a web application that allows authenticated users to upload geotagge
 
 ```
 User selects file
+  → Upload preview modal shown in browser
   → React sends multipart/form-data to POST /api/photos
   → AuthMiddleware validates JWT
   → MetadataExtractor reads GPS EXIF from binary
       → If no GPS data: return 400 "Image has no geotag"
   → IStorageService.Save(file) → writes to /uploads/{guid}.jpg
   → INSERT Photo(userId, filePath, lat, lng) → return photo JSON
-  → Background task: call Ollama REST API (llava model) with image as base64
+  → Background task: call Gemini 2.5 Flash API with image as base64
       → UPDATE Photo SET AiDescription = "..."
   → React receives photo, drops marker on Leaflet map at (lat, lng)
+  → Popup polls every 3s until AI description is available
 ```
 
 ---
@@ -125,18 +127,18 @@ User selects file
 
 | Strategy | When to use |
 |---|---|
-| **Marker clustering** (Leaflet.markercluster) | First line of defense — groups nearby markers at high zoom levels into a count bubble. Near-zero implementation cost. |
+| **Marker clustering** (react-leaflet-cluster) | First line of defense — groups nearby markers at low zoom levels into a count bubble. Implemented in this project. |
 | **Viewport-based loading** | `GET /api/photos?bbox=lat1,lng1,lat2,lng2` — backend only returns photos visible in the current map bounds. Reduces initial payload dramatically. |
 | **Pagination / infinite load** | Combine with bbox: load the 200 closest photos, fetch more on zoom-in. |
 | **Tile server (future)** | At true scale (100k+), pre-render photos into map tiles using PostGIS + pg_tileserv. |
 
-For this project, marker clustering + bbox filtering covers the 10k requirement cleanly.
+For this project, marker clustering covers the 10k requirement. Bbox filtering would be the next step for larger datasets.
 
 **Image storage trade-offs:**
 
 | Approach | Pros | Cons |
 |---|---|---|
-| Local filesystem | Zero setup, fast for dev | Doesn't scale, lost on container restart without a volume |
+| Local filesystem | Zero setup, fast for dev | Doesn't scale, lost on server restart without a volume |
 | S3-compatible (Minio locally, AWS S3 in prod) | Scalable, persistent, CDN-ready | Requires credentials, slightly more setup |
 | Database BLOBs | Simple queries | Bloats the DB, kills query performance at scale |
 
@@ -146,21 +148,17 @@ For this project, marker clustering + bbox filtering covers the 10k requirement 
 
 ## 8. Deployment
 
-### Local (Docker Compose)
+### Local Development
 
-```yaml
-services:
-  db:        postgres:16
-  backend:   dotnet watch run (or published image)
-  frontend:  vite dev server (or nginx serving /dist)
-  ollama:    ollama/ollama (pull llava model on first run)
+Postgres runs natively via `apt install postgresql`. The backend runs with `dotnet run` and the frontend with `npm run dev`. No Docker required for local development.
+
+```
+Terminal 1: sudo service postgresql start
+Terminal 2: cd backend/GeoPhoto.API && dotnet run      → http://localhost:5132
+Terminal 3: cd frontend/geophoto-ui && npm run dev     → http://localhost:5173
 ```
 
-Single command: `docker compose up` — app runs at `http://localhost:5173`.
-
-> **Note on Ollama:** LLaVA requires ~4GB of disk for the model weights. On first run, `ollama pull llava` downloads automatically inside the container. CPU inference takes ~10–20s per image — acceptable since the description is generated in the background after upload.
-
-### Cloud (optional, production path)
+### Cloud (production path)
 
 | Service | Component |
 |---|---|
@@ -176,13 +174,13 @@ Single command: `docker compose up` — app runs at `http://localhost:5173`.
 | Phase | Tasks | Estimate |
 |---|---|---|
 | **0 — Strategist** | Architecture doc, diagrams, tech decisions | 1h |
-| **1 — Setup** | Repo, Docker Compose, ASP.NET scaffold, Vite scaffold, DB connection | 1h |
+| **1 — Setup** | Repo, ASP.NET scaffold, Vite scaffold, DB connection | 1h |
 | **2 — Auth** | User model, register/login endpoints, JWT, React login/register forms | 1.5h |
 | **3 — Photo upload** | Photo model, multipart upload endpoint, EXIF parsing, file save | 1.5h |
 | **4 — Map** | Leaflet integration, marker rendering, photo popup | 1.5h |
 | **5 — Comments** | Comment model, API endpoints, comment UI in popup | 1h |
-| **6 — AI descriptions** | Ollama + LLaVA setup in Docker, base64 image call, display in popup | 1h |
-| **7 — Polish & delivery** | README, end-to-end test, optional video demo | 1h |
+| **6 — AI descriptions** | Gemini API integration, background task, polling UI | 1h |
+| **7 — Polish & delivery** | README, clustering, upload modal, empty state, end-to-end test | 1h |
 | **Total** | | **~9.5h** |
 
 ---
@@ -191,7 +189,8 @@ Single command: `docker compose up` — app runs at `http://localhost:5173`.
 
 - **Monorepo over separate repos** — easier to run locally, simpler for a reviewer to clone and understand.
 - **JWT over session cookies** — stateless, SPA-friendly, no server-side session store needed.
-- **Ollama over cloud AI APIs** — LLaVA runs locally inside Docker at zero cost. The REST API (`POST /api/generate`) is simple enough that no SDK is needed — a plain `HttpClient` call from the backend suffices.
-- **Background AI call** — AI description is generated after the photo is saved, so the upload doesn't block on inference time. The UI shows a "generating description..." placeholder and polls or updates when ready.
-- **`IStorageService` abstraction** — swapping local disk to S3 is a one-line config change, not a refactor.
-- **Marker clustering over raw markers** — `Leaflet.markercluster` handles 10k markers gracefully with 5 lines of code.
+- **Gemini 2.5 Flash over local AI** — provides high-quality vision descriptions via a free REST API. No local GPU required, no model weights to manage. The free tier is sufficient for a demo workload.
+- **Background AI call** — AI description is generated after the photo is saved, so the upload is never blocked by inference latency. The UI shows "⏳ Generating description..." and polls every 3 seconds until the description is ready.
+- **`IStorageService` abstraction** — swapping local disk to S3 is a one-line config change, not a refactor. This keeps the business logic clean and environment-agnostic.
+- **Marker clustering over raw markers** — react-leaflet-cluster groups nearby markers at low zoom levels, directly addressing the 10k photo performance requirement stated in the brief. Near-zero implementation cost with significant performance gain.
+- **Upload preview modal** — showing a thumbnail before confirming the upload reduces accidental uploads and gives the user confidence they selected the right file.
